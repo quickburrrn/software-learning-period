@@ -5,10 +5,37 @@
 #include <stdexcept>
 #include <string>
 
+class trafic_light {
+   public:
+      int laneId;
+      int junction;
+      std::string signalId;
+      uint8_t state;
+};
+
 SignalNode::SignalNode() : Node("signal_node") {
     set_parameters();
 
     set_publisher();
+
+    //1
+    //junction1_lane1
+    //2
+    //junction1_lane2
+    //3
+    //junction2_lane1
+    //4
+    //junction2_lane2
+
+    trafic_light trafic_lights_[4] = {
+       { 1, 1, "junction1_lane1", transit_msgs::msg::SignalState::GREEN},
+       { 2, 1, "junction2_lane2", transit_msgs::msg::SignalState::GREEN},
+       { 3, 2, "junction2_lane1", transit_msgs::msg::SignalState::RED},
+       { 4, 2, "junction2_lane2", transit_msgs::msg::SignalState::RED}};
+
+    std::string debug_ = trafic_lights_[0].signalId;
+
+    RCLCPP_INFO(this->get_logger(), "%s", debug_.c_str());           
 }
 
 // ---------------------------------------------------------------------------
@@ -87,6 +114,15 @@ void SignalNode::publish_lights() {
     //     Write state_for_lane() first, just below. This function is
     //     useless without it.
 
+    //1
+    //junction1_lane1
+    //2
+    //junction1_lane2
+    //3
+    //junction2_lane1
+    //4
+    //junction2_lane2
+
     uint8_t state = state_for_lane(lane_id_);
 
     transit_msgs::msg::SignalState message;
@@ -94,6 +130,8 @@ void SignalNode::publish_lights() {
     message.signal_id = signal_id_;
     message.lane_id = lane_id_;
     message.state = state;
+
+    for ()
 
     signal_pub_ -> publish(message);
 
@@ -104,6 +142,8 @@ void SignalNode::publish_lights() {
     //     The junction has four of them, lanes 1 to 4, and each needs its
     //     own message with its own lane_id, its own signal_id and its own
     //     colour from state_for_lane(). So four messages per tick.
+
+
 
     // throw std::runtime_error(
     //    "Task 3: publish a SignalState in publish_lights(), then delete this "
@@ -129,9 +169,11 @@ uint8_t SignalNode::state_for_lane(uint16_t lane) {
     //     a matter of comparing against the phase lengths.
     //
 
+
+
     double timer = fmod(elapsed_, green_seconds_ + yellow_seconds_ + all_red_seconds_ + yellow_seconds_);
     
-    RCLCPP_INFO(this->get_logger(), "Timer: %.2f", timer);
+    //RCLCPP_INFO(this->get_logger(), "Timer: %.2f", timer);
 
     // transit_msgs::msg::SignalState state;
 
