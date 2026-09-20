@@ -1,207 +1,87 @@
-# 🐳 Docker Tutorial
+# Run the learning period with Docker
 
-This folder contains a Docker-based development environment tailored for a standard ROS 2 workspace. It’s designed not just to work — but to help you **understand** how it works. This tutorial will walk you through the building blocks of Docker in a learning-oriented, hands-on way.
+Install [Docker Engine](https://docs.docker.com/engine/install/) on Linux or
+Docker Desktop on macOS/Windows (run these scripts from WSL 2 on Windows).
+Docker must be running. If Docker reports permission denied on Linux, prefix
+host Docker commands and the build/run scripts with `sudo`.
 
----
+## 1. Build the image
 
-## Prerequisites
-
-Before getting started, make sure you have Docker installed:
-
-- [Docker Desktop (macOS/Windows)](https://www.docker.com/products/docker-desktop)
-- [Docker Engine (Linux)](https://docs.docker.com/engine/install/)
-  - On Linux, prefix commands with `sudo`, or configure Docker as a non-root user:  
-    👉 [Manage Docker as a non-root user](https://docs.docker.com/engine/install/linux-postinstall/)
-
----
-
-## Expected Workspace Structure
-
-This setup assumes your local file tree follows a standard ROS 2 workspace layout:
+From this repository:
 
 ```bash
-ros2_ws/
-├── build/
-├── log/
-├── install/
-└── src/
-    └── software-learning-period/
-        └── docker/
-            ├── Dockerfile
-            ├── build.sh
-            └── run.sh
+bash docker/build.sh
 ```
 
----
+The image installs ROS 2 Humble, compiler/colcon tools, and dependencies from
+all package manifests, including vision, PCL, and the Foxglove bridge.
+Only this repository is sent to Docker; host build artifacts are excluded.
+The default platform is AMD64. For native ARM64 use
+`PLATFORM=linux/arm64 bash docker/build.sh`.
+Rebuild the image when package dependencies change.
 
-## Step-by-Step Guide
-
-### 1. Clone the Repository
-
-If you haven't already:
+## 2. Start the container and compile
 
 ```bash
-git clone git@github.com:vortexntnu/software-learning-period.git
-cd software-learning-period
+bash docker/run.sh
 ```
 
-### 2. Build the Docker Image
+Inside the container:
 
-#### Ubuntu / Linux
 ```bash
-cd docker
-chmod +x build.sh
-sudo ./build.sh
+colcon build --symlink-install --executor sequential
+source /ros2_ws/install/setup.bash
+ros2 run talker talker_node
 ```
-You may need to use sudo for Docker commands unless your user is added to the docker group.
-See: [Manage Docker as a non-root user](https://docs.docker.com/engine/install/linux-postinstall/)
 
-#### macOS
+The container contains only the learning-period repository under `/ros2_ws/src`.
+Source edits are shared with the host. Build/install/log directories stay inside
+the container, avoiding conflicts with native builds. After editing code, stop
+your node, rerun `colcon build`, and source the workspace again.
+
+## 3. Open another terminal
+
+On the host, while the first container is still running:
+
 ```bash
-cd docker
-chmod +x build.sh
-./build.sh
+docker exec -it software-learning-period bash
 ```
-On macOS, Docker Desktop handles permissions, so sudo is usually not needed.
 
-**What this does**:
-- Builds a Docker image using the Dockerfile in this directory.
-- Tags the image as ```software-learning-period:latest```.
+ROS and the compiled workspace are sourced automatically. For example:
 
-Inside the Dockerfile, you’ll find key instructions:
-- ```FROM```: Defines the base image (ros:humble)
-- ```COPY```: Copies your ROS workspace files
-- ```CMD```: Defines the default startup command (bash)
-
-### 3. Run the Container
-
-#### Ubuntu / Linux
 ```bash
-chmod +x run.sh
-sudo ./run.sh
+ros2 topic echo /talker_pose
 ```
 
-#### macOS
+Use `docker exec` for additional terminals, rather than starting another container.
+
+## 4. Run the traffic city
+
+Inside the container, after compiling:
+
 ```bash
-chmod +x run.sh
-./run.sh
+ros2 launch transit_sim transit_sim.launch.py
 ```
 
-**What this does**:
-- Starts a new interactive container from the image you built
-- Mounts your ROS workspace from your host into /ros2_ws inside the container
-- Opens a Bash shell so you can start working with ROS 2 right away
+In another container terminal opened using `docker exec`:
 
-### 4. Use ROS 2 Inside the Container
-Once inside the container:
 ```bash
-colcon build
-ros2 launch my_package my_launch_file.launch.py
+python3 /ros2_ws/src/software-learning-period/traffic-sim/transit_sim/scripts/drive_city.py
 ```
 
-All build artifacts (```build/```, ```install/```, ```log/```) will remain on your host since the volume is mounted into the container.
+Connect Foxglove on your host to `ws://localhost:8765`, then import
+`traffic-sim/transit_sim/config/transit_city.json` from this repository.
+See the [sim guide](../traffic-sim/transit_sim/README.md) for visualization details.
+The scripts expose this port on localhost; GUI/X11 forwarding for RViz is not configured.
 
-## Docker Basics & Commands
+## Stopping and restarting
 
-Here are some helpful Docker commands you can reference:
+Stop nodes with Ctrl+C and type `exit` in the original container shell.
+The container is removed when that shell exits: source edits persist, but compiled
+artifacts and packages installed manually inside the container do not.
+Run `bash docker/run.sh` and compile again next time. Add permanent dependencies
+to package manifests and rebuild the image.
 
-| **Command**                  | **Description**                          |
-|-----------------------------|------------------------------------------|
-| `docker ps -a`              | List all running and stopped containers  |
-| `docker images`             | Show all locally available images        |
-| `docker build -t <tag> .`   | Build image from a Dockerfile            |
-| `docker run -it <image>`    | Run container interactively              |
-| `docker rm <container>`     | Remove a stopped container               |
-| `docker rmi <image>`        | Remove an image                          |
-| `docker image prune`        | Remove unused images                     |
-
----
-
-## Task: Make Installed Packages Persistent
-
-One of the first things you'll notice when working in a container is that anything you install manually (e.g. with `apt`) is lost once the container is stopped and removed. To make installed tools available permanently, you must **bake them into the image** using the Dockerfile.
-
-Let's try it!
-
----
-
-### Task: Add `curl` to Your Image
-
-You’ll now modify the Dockerfile to install a common tool: `curl`. This is just an example — the same approach works for Python packages, ROS tools, or anything else you need.
-
-1. Open the file: `docker/Dockerfile`
-2. Add the following line just before the `COPY . .` line:
-```dockerfile
-RUN apt update && apt install -y curl
-```
-
-Your Dockerfile will now look like this:
-```dockerfile
-# ------------------------------------------------------------------------------
-# Base Image
-# ------------------------------------------------------------------------------
-ARG BASE_IMAGE=ros:humble
-FROM ${BASE_IMAGE}
-
-# ------------------------------------------------------------------------------
-# Runtime Configuration
-# ------------------------------------------------------------------------------
-USER root
-SHELL ["/bin/bash", "-c"]
-ARG DEBIAN_FRONTEND=noninteractive
-
-# ------------------------------------------------------------------------------
-# Workspace Setup
-# ------------------------------------------------------------------------------
-ENV WORKSPACE=/ros2_ws
-WORKDIR ${WORKSPACE}
-
-# ------------------------------------------------------------------------------
-# Install system dependencies
-# ------------------------------------------------------------------------------
-RUN apt update && apt install -y curl
-
-# ------------------------------------------------------------------------------
-# Copy Workspace Files
-# ------------------------------------------------------------------------------
-COPY . .
-
-# ------------------------------------------------------------------------------
-# Default Startup Command
-# ------------------------------------------------------------------------------
-CMD ["bash"]
-```
-
-3. Rebuild the image
-```bash
-./build.sh
-```
-
-4. Run the container:
-```bash
-./run.sh
-```
-
-5. Inside the container, verify:
-```bash
-curl --version
-```
-
-You’ve now added a dependency to the image itself — no need to reinstall it every time you start a new container!
-
-```vbnet
-Tip: Whenever you find yourself installing something manually inside the container, ask yourself: Should this go in the Dockerfile instead?
-```
-
----
-
-## Wrapping Up
-
-You now have a working introduction to using Docker with a ROS 2 workspace — complete with:
-
-- A preconfigured Dockerfile
-- Build and run scripts
-- Workspace volume mounting
-- Persistent image customization
-
-This setup serves as a **reusable starting point** for other ROS 2 projects. Feel free to **copy the entire `docker/` folder** into other repositories and adapt it to fit your needs.
+`IMAGE` overrides the image tag for both scripts; `CONTAINER_NAME` overrides the
+run script's container name. The separate state-machine exercise requires the
+additional repository described in [its instructions](../state_machines/README.md).

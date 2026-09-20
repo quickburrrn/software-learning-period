@@ -22,9 +22,9 @@
       # on. Lane numbers are written on the map in Foxglove/RViz2, and
       # listed in transit_sim/README.md under "The map". Colour names are
       # in transit_sim/transit_sim/colors.py.
-      vehicle_id: "car_yourname"
+      vehicle_id: "andre"
       lane_id: 1
-      color: "red"
+      color: "purple"
 
       # TODO (Task 2): how long your lane is, in metres.
       # There is no C++ function that hands you the sim's map, so you have

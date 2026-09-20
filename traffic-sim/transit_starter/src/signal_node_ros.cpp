@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cmath>     // std::fmod, which Task 3 needs
 #include <stdexcept>
+#include <string>
 
 SignalNode::SignalNode() : Node("signal_node") {
     set_parameters();
@@ -63,9 +64,15 @@ void SignalNode::set_publisher() {
     //     vehicle_node_ros.cpp. Only the message type and the variable
     //     names change, so read your own code rather than starting again.
 
-    throw std::runtime_error(
-        "Task 3: create the publisher and the timer in set_publisher(), then "
-        "delete this throw");
+    signal_pub_ = this->create_publisher<transit_msgs::msg::SignalState>(signal_topic_, 10);
+
+    timer_ = this->create_wall_timer(
+       std::chrono::duration<double>(1.0 / tick_hz_),
+       std::bind(&SignalNode::tick, this));
+
+    // throw std::runtime_error(
+    //     "Task 3: create the publisher and the timer in set_publisher(), then "
+    //     "delete this throw");
 }
 
 void SignalNode::publish_lights() {
@@ -80,15 +87,27 @@ void SignalNode::publish_lights() {
     //     Write state_for_lane() first, just below. This function is
     //     useless without it.
 
+    uint8_t state = state_for_lane(lane_id_);
+
+    transit_msgs::msg::SignalState message;
+
+    message.signal_id = signal_id_;
+    message.lane_id = lane_id_;
+    message.state = state;
+
+    signal_pub_ -> publish(message);
+
+    //RCLCPP_INFO(this->get_logger(), "pulbish");
+
     // TODO (Task 4): publish all four approaches instead of only ours.
     //
     //     The junction has four of them, lanes 1 to 4, and each needs its
     //     own message with its own lane_id, its own signal_id and its own
     //     colour from state_for_lane(). So four messages per tick.
 
-    throw std::runtime_error(
-        "Task 3: publish a SignalState in publish_lights(), then delete this "
-        "throw");
+    // throw std::runtime_error(
+    //    "Task 3: publish a SignalState in publish_lights(), then delete this "
+    //    "throw");
 }
 
 uint8_t SignalNode::state_for_lane(uint16_t lane) {
@@ -109,6 +128,25 @@ uint8_t SignalNode::state_for_lane(uint16_t lane) {
     //     std::fmod (from <cmath>) does that for doubles. From there it is
     //     a matter of comparing against the phase lengths.
     //
+
+    double timer = fmod(elapsed_, green_seconds_ + yellow_seconds_ + all_red_seconds_ + yellow_seconds_);
+    
+    RCLCPP_INFO(this->get_logger(), "Timer: %.2f", timer);
+
+    // transit_msgs::msg::SignalState state;
+
+    if (timer < green_seconds_)
+    {
+       return transit_msgs::msg::SignalState::GREEN;
+    } else if (timer < green_seconds_ + yellow_seconds_) {
+       return transit_msgs::msg::SignalState::YELLOW;
+    } else if (timer < green_seconds_ + yellow_seconds_ + all_red_seconds_)
+    {
+       return transit_msgs::msg::SignalState::RED;
+    }
+    return transit_msgs::msg::SignalState::YELLOW;
+
+    //
     //     For Task 3 you can ignore the `lane` argument and give every lane
     //     the same answer. Only lane_id_ is being published anyway.
 
@@ -128,6 +166,6 @@ uint8_t SignalNode::state_for_lane(uint16_t lane) {
     //     Compare your cycle against PHASES in scripts/drive_city.py once
     //     it works, not before.
 
-    (void)lane;  // delete this line once you use lane, in Task 4
-    return transit_msgs::msg::SignalState::RED;
+    // (void)lane;  // delete this line once you use lane, in Task 4
+    // return transit_msgs::msg::SignalState::RED;
 }

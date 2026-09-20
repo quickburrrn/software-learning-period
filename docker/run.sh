@@ -1,58 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-# ------------------------------------------------------------------------------
-# Image Configuration
-# ------------------------------------------------------------------------------
-
-IMAGE="software-learning-period:latest"  # Default Docker image name/tag
-
-# ------------------------------------------------------------------------------
-# Platform Detection (Optional)
-# ------------------------------------------------------------------------------
-# While 'docker run' doesn't require this unless you do platform-specific logic,
-# we log it for transparency.
-# ------------------------------------------------------------------------------
-
-ARCHITECTURE="$(uname -m)"
-if [[ "$ARCHITECTURE" == "arm64" || "$ARCHITECTURE" == "aarch64" ]]; then
-    PLATFORM="arm64"
-elif [[ "$ARCHITECTURE" == "x86_64" ]]; then
-    PLATFORM="amd64"
-else
-    echo "Unsupported architecture: $ARCHITECTURE" >&2
-    exit 1
-fi
-
-# ------------------------------------------------------------------------------
-# Locate Script Directory and Workspace Root
-# ------------------------------------------------------------------------------
-
-SCRIPT_DIR="$(dirname "$(realpath "$0")")"
-WORKSPACE="$(realpath "$SCRIPT_DIR/../../..")" # A bit cursed, but should work
-
-# ------------------------------------------------------------------------------
-# Run Information
-# ------------------------------------------------------------------------------
-
-echo "======================================================================"
-echo " Running Container"
-echo "   • IMAGE:          $IMAGE"
-echo "   • PLATFORM:       $PLATFORM"
-echo "   • MOUNT:          $WORKSPACE  →  /ros2_ws"
-echo "======================================================================"
-echo ""
-
-# ------------------------------------------------------------------------------
-# Run Docker Container
-# ------------------------------------------------------------------------------
-
-docker run -it --rm \
-    --user "$(id -u):$(id -g)" \
-    --privileged \
-    --network host \
-    --ipc=host \
-    -v "$WORKSPACE":/ros2_ws \
-    -w /ros2_ws \
-    "$IMAGE" \
-    /bin/bash
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+IMAGE="${IMAGE:-software-learning-period:latest}"
+CONTAINER_NAME="${CONTAINER_NAME:-software-learning-period}"
+# Keep files created in the source mount owned by the host user, even with sudo.
+HOST_UID="${SUDO_UID:-$(id -u)}"
+HOST_GID="${SUDO_GID:-$(id -g)}"
+docker run -it --rm --name "$CONTAINER_NAME" \
+    --user "$HOST_UID:$HOST_GID" \
+    -p 127.0.0.1:8765:8765 \
+    --mount "type=bind,source=$REPO_DIR,target=/ros2_ws/src/software-learning-period" \
+    -w /ros2_ws "$IMAGE" bash

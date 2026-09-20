@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <stdexcept>
+// #include "std_msgs/msg/"
 
 VehicleNode::VehicleNode() : Node("vehicle_node") {
     set_parameters();
@@ -9,15 +10,6 @@ VehicleNode::VehicleNode() : Node("vehicle_node") {
     set_subscribers_and_publisher();
 }
 
-// ---------------------------------------------------------------------------
-// Written for you. Read it, but you do not have to change it.
-//
-// Every value the node needs is a ROS parameter with a default. The real
-// values are in config/transit_params.yaml, so you can change your lane or
-// your speed there and just relaunch, without rebuilding. declare_parameter
-// registers the name and hands back either the value from that file or the
-// default written here.
-// ---------------------------------------------------------------------------
 void VehicleNode::set_parameters() {
     vehicle_topic_ = this->declare_parameter<std::string>(
         "topics.vehicle_state", "/vehicle_state");
@@ -25,10 +17,10 @@ void VehicleNode::set_parameters() {
         "topics.signal_state", "/signal_state");
 
     vehicle_id_ = this->declare_parameter<std::string>("vehicle.vehicle_id",
-                                                       "car_yourname");
+                                                       "andre");
     lane_id_ =
         static_cast<uint16_t>(this->declare_parameter<int>("vehicle.lane_id", 1));
-    color_ = this->declare_parameter<std::string>("vehicle.color", "red");
+    color_ = this->declare_parameter<std::string>("vehicle.color", "purple");
 
     speed_ = this->declare_parameter<double>("vehicle.speed", 8.0);
     lane_length_ = this->declare_parameter<double>("vehicle.lane_length", 80.0);
@@ -38,14 +30,6 @@ void VehicleNode::set_parameters() {
     tick_hz_ = this->declare_parameter<double>("vehicle.tick_hz", 20.0);
 }
 
-// ---------------------------------------------------------------------------
-// Written for you. This runs tick_hz_ times a second, once you have created
-// the timer in set_subscribers_and_publisher() below.
-//
-// It calls three functions, one per task. They already exist further down
-// this file, and they are all empty. Fill them in one at a time, in the
-// order the curriculum gives, and the car does a little more each time.
-// ---------------------------------------------------------------------------
 void VehicleNode::tick() {
     if (must_stop_for_light()) {
         // Task 5 makes this happen. Until then it never runs.
@@ -58,20 +42,11 @@ void VehicleNode::tick() {
     publish_state();
 }
 
-void VehicleNode::set_subscribers_and_publisher() {
-    // TODO (Task 1): create the publisher and the timer, then delete the
-    //     throw at the bottom of this function.
-    //
-    //     The publisher sends messages of type
-    //     transit_msgs::msg::VehicleState on the topic named by
-    //     vehicle_topic_, and has to be stored in vehicle_pub_.
-    //
-    //     The timer has to call this node's tick() every
-    //     1.0 / tick_hz_ seconds, and has to be stored in timer_.
-    //
-    //     The shape of both calls is in transit_starter/README.md, under
-    //     "The ROS 2 calls you will need". Write the timer period as
-    //     std::chrono::duration<double>(1.0 / tick_hz_).
+void VehicleNode::set_subscribers_and_publisher() { 
+    vehicle_pub_ = this->create_publisher<transit_msgs::msg::VehicleState>(vehicle_topic_, 1); 
+    timer_ = this->create_wall_timer(
+       std::chrono::duration<double>(1.0 / tick_hz_), 
+       std::bind(&VehicleNode::tick, this)); 
 
     // TODO (Task 5): create the subscription. Leave this until Tasks 1 and 2
     //     work and you are ready to obey the light.
@@ -86,36 +61,22 @@ void VehicleNode::set_subscribers_and_publisher() {
     //     Note you will receive every traffic light in the city on this
     //     topic, not only yours. Sorting that out is on_signal's job.
 
-    throw std::runtime_error(
-        "Task 1: create the publisher and the timer in "
-        "set_subscribers_and_publisher(), then delete this throw");
+    // throw std::runtime_error(
+    //    "Task 1: create the publisher and the timer in "
+    //    "set_subscribers_and_publisher(), then delete this throw");
 }
 
-void VehicleNode::publish_state() {
-    // TODO (Task 1): build one VehicleState message, fill in its fields,
-    //     publish it with vehicle_pub_, then delete the throw below.
-    //
-    //     Make an empty message like this:
-    //         transit_msgs::msg::VehicleState message;
-    //
-    //     Then set its six fields. They are described in
-    //     transit_msgs/msg/VehicleState.msg:
-    //         message.vehicle_id = vehicle_id_;
-    //         message.lane_id    = lane_id_;
-    //         message.progress   = progress_;
-    //         message.color      = color_;
-    //         message.velocity   = velocity_;
-    //         message.moving     = moving_;
-    //
-    //     Then hand it to the publisher: vehicle_pub_->publish(message).
-    //
-    //     You do not need to touch this function again after Task 1. The
-    //     later tasks change progress_, moving_ and velocity_, and this
-    //     function just sends whatever they are at the time.
+void VehicleNode::publish_state() { 
+    transit_msgs::msg::VehicleState message;
 
-    throw std::runtime_error(
-        "Task 1: build and publish a VehicleState in publish_state(), then "
-        "delete this throw");
+    message.vehicle_id = vehicle_id_;
+    message.lane_id = lane_id_;
+    message.progress = progress_;
+    message.color = color_;
+    message.velocity = velocity_;
+    message.moving = moving_;
+
+    vehicle_pub_-> publish(message);
 }
 
 void VehicleNode::advance_progress() {
@@ -138,6 +99,17 @@ void VehicleNode::advance_progress() {
     //
     //     This function being empty is what makes the car stand still in
     //     Task 1, so there is no throw to delete here.
+
+    velocity_ = speed_ / tick_hz_;
+    progress_ += velocity_ / lane_length_;
+
+    moving_ = true;
+
+    if (progress_ >= 1.0)
+    {
+       progress_ = 0.0;
+    }
+    // throw std::runtime_error("bla bla bla");
 }
 
 bool VehicleNode::must_stop_for_light() {
